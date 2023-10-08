@@ -1,0 +1,12 @@
+---
+    - name: Create virtual network gateway Generation2 "{{ vpn_gateway_name }}"
+      azure_rm_virtualnetworkgateway:
+        resource_group: "{{ resource_group_name }}"
+        name: "{{ vpn_gateway_name }}"
+        sku: VpnGw2
+        vpn_gateway_generation: Generation2
+        ip_configurations:
+          - name: defaultipconfig
+            private_ip_allocation_method: Dynamic
+            public_ip_address_name: "{{ public_ip_name }}"
+        virtual_network: "{{ virtual_network_name }}"

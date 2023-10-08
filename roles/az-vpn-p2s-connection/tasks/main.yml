@@ -1,0 +1,66 @@
+---
+    - name: Login Az CLI
+      shell: >
+         az login --service-principal --username {{ az_client_id }}
+         --password {{ az_client_secret }} --tenant {{ az_tenant_id }}
+    - name: Add P2S configuration
+      shell: >
+        az network vnet-gateway update -g {{ resource_group_name }} -n {{ vpn_gateway_name }} 
+        --address-prefixes 172.16.201.0/24  --client-protocol OpenVPN
+    - name: Add Public certificate Data in the P2S VPN Config
+      shell: >
+        az network vnet-gateway root-cert create -g {{ resource_group_name }} -n P2SRootCert
+        --gateway-name {{ vpn_gateway_name }}  --public-cert-data {{ role_path }}/files/P2SRootCert.cer
+    - name: Make my directory tree readable
+      file:
+        path: "{{ playbook_dir }}/output_files/"
+        mode: u=rw,g=rw,o=rw
+        recurse: yes
+    - name: downloading the VPN client for Az VPN
+      shell: >
+        az network vnet-gateway vpn-client generate -g {{ resource_group_name }} -n {{ vpn_gateway_name }}
+        --processor-architecture Amd64
+      register: vpn_client_url_output
+    - debug:
+        msg: "VPN client URL is {{ vpn_client_url_output.stdout }}"
+    - name: Access the same URL with Basic Authentication and Download the file
+      get_url:
+        url: "{{ vpn_client_url_output.stdout | regex_replace('\"', '') }}" 
+        dest: "{{ playbook_dir }}/output_files/vpn_client.zip"
+    - name: Decompress the vpn files
+      become: yes
+      become_method: sudo
+      unarchive:  
+        src: "{{ playbook_dir }}/output_files/vpn_client.zip"
+        dest: "{{ playbook_dir }}/output_files/"
+      ignore_errors: true
+    - name: Print the client certificate data
+      shell: > 
+        openssl pkcs12 -in {{ role_path }}/files/P2SClientCert.pfx -nokeys -passin pass:mathu
+        -passout pass:mathu -clcerts | sed -ne '/-BEGIN /,/-END/p'
+      register: client_data
+    - debug: var=client_data.stdout
+    - name: Print the client private key
+      shell: >
+        openssl pkcs12 -in {{ role_path }}/files/P2SClientCert.pfx 
+        -nocerts -passin pass:mathu -passout pass:mathu | sed -ne '/-BEGIN /,/-END/p'
+      register: priv_key
+    - debug: var=priv_key.stdout
+    - name: Replace Client certificate content in the ovpn file
+      replace:
+        path: "{{ playbook_dir }}/output_files/OpenVPN/vpnconfig.ovpn"
+        regexp: '\$CLIENTCERTIFICATE'
+        replace: "{{client_data.stdout}}"
+    - name: Replace client private key content in the ovpn file
+      replace:
+        path: "{{ playbook_dir }}/output_files/OpenVPN/vpnconfig.ovpn"
+        regexp: '\$PRIVATEKEY'
+        replace: "{{priv_key.stdout}}"
+    # This one wont work , since passphrase given for the self signed certificate. 
+    # Directly run the below shell command , use . instead of playbook_dir variable
+    #- name: Connect to Azure VPN using OpenVPN client
+    #  shell: >
+    #    openvpn3 session-start --config "{{ playbook_dir }}/output_files/OpenVPN/vpnconfig.ovpn"
+    #  register: openvpn_connect_result
+    #- debug: var=openvpn_connect_result.stdout
+  

@@ -1,0 +1,30 @@
+- name: Ping web & db Server
+  hosts: all
+  become: yes
+  become_method: sudo
+  connection: ssh
+  tasks:
+    - name: ping
+      ping:
+
+- name: Setup DB Servers
+  hosts: db_servers
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  become: yes
+  become_method: sudo
+  connection: ssh
+  roles:
+    - python3
+    - mysql-db
+
+- name: Setup Web Servers
+  hosts: web_servers
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  become: yes
+  become_method: sudo
+  connection: ssh
+  roles:
+    - python3
+    - web-falsk-app

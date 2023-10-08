@@ -1,0 +1,12 @@
+---
+    - name: Create Network Security Group that allows port "{{ port_range }}"
+      azure_rm_securitygroup:
+        resource_group: "{{ resource_group_name }}"
+        name: "{{ network_security_group_name }}"
+        rules:
+          - name: "{{ rule_name }}"
+            protocol: "{{ rule_protocol }}"
+            destination_port_range: "{{ port_range }}"
+            access: "{{ access_type }}"
+            priority: "{{ priority }}"
+            direction: "{{ direction }}"

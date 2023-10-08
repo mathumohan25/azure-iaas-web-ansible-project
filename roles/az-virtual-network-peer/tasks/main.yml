@@ -1,0 +1,13 @@
+---
+    - name: Create virtual network peering {{ peering_name }}
+      azure_rm_virtualnetworkpeering:
+        resource_group: "{{ resource_group_name }}"
+        virtual_network: "{{ vnet_name }}"
+        name: "{{ peering_name }}"
+        remote_virtual_network:
+          resource_group: "{{ remote_resource_group_name }}"
+          name: "{{ remote_vnet_name }}"
+        allow_virtual_network_access: true
+        allow_forwarded_traffic: true
+        use_remote_gateways: "{{ use_remote_gateway}}"
+        allow_gateway_transit: "{{ allow_gateway_transit }}"

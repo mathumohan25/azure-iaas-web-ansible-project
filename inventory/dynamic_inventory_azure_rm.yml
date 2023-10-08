@@ -1,0 +1,7 @@
+plugin: azure_rm
+include_vm_resource_groups:
+  - az-web-db-app-rg
+conditional_groups:
+  web_servers: "'web' in computer_name"
+  db_servers: "'db' in computer_name"
+auth_source: auto

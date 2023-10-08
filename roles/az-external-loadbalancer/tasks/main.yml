@@ -1,0 +1,61 @@
+---
+    - name: Get NIC details by NIC name
+      azure_rm_networkinterface_info:
+        resource_group: "{{ target_resource_group_name }}"
+        name: "{{ item }}"
+      with_items: "{{ network_interfaces }}"
+      register: network_interfaces_result
+    - name: Prepare Dict of NIC & IP by NIC name
+      set_fact: 
+        network_interfaces_dict: "{{ network_interfaces_dict | default([]) + [{ 'key':item.networkinterfaces[0].name, 'value': item.networkinterfaces[0].ip_configurations[0].private_ip_address }] }}"
+      with_items: "{{network_interfaces_result.results}}"
+    - debug: var=item
+      with_items:
+        - "{{ network_interfaces_dict }}"
+    - name: create load balancer "{{ load_balancer_name }}"
+      azure_rm_loadbalancer:
+        resource_group: "{{ resource_group_name }}"
+        name: "{{ load_balancer_name }}"
+        sku: Standard
+        frontend_ip_configurations:
+          - name: "{{ load_balancer_name + '-frontend-ip-config' }}"
+            public_ip_address: "{{ public_ip_name }}"
+        backend_address_pools:
+          - name: "{{ load_balancer_name + '-backend-addr-pool' }}"
+        probes:
+          - name: "{{ load_balancer_name + '-probe-0' }}"
+            port: 80
+        load_balancing_rules:
+          - name: "{{ load_balancer_name + '-lb-rule-0' }}"
+            frontend_ip_configuration: "{{ load_balancer_name + '-frontend-ip-config' }}"
+            backend_address_pool: "{{ load_balancer_name + '-backend-addr-pool' }}"
+            frontend_port: 80
+            backend_port: 80
+            probe: "{{ load_balancer_name + '-probe-0' }}"
+            disable_outbound_snat: True
+      register: lb_output
+    #- debug:
+    #    msg: "The public ID is {{ lb_output.state.backend_address_pools[0].id }}."
+    - name: set required values
+      set_fact:
+        backend_id: "{{ lb_output.state.backend_address_pools[0].id }}"
+    - name: Login Az CLI
+      shell: >
+        az login --service-principal --username {{ az_client_id }}
+        --password {{ az_client_secret }} --tenant {{ az_tenant_id }}
+    - name: Add Members to Pool by NIC
+      shell: >
+        az network lb address-pool address add -g {{ resource_group_name }}
+        --lb-name {{ load_balancer_name }} --pool-name {{ load_balancer_name + '-backend-addr-pool' }}
+        --vnet /subscriptions/{{ subscription_id }}/resourceGroups/{{ target_resource_group_name }}/providers/Microsoft.Network/virtualNetworks/{{ target_vnet_name }}
+        --ip-address {{ item.value }} -n {{ item.key }}
+      with_items:
+        - "{{ network_interfaces_dict }}"
+    - name: Get facts for one Public IP
+      azure_rm_publicipaddress_info:
+        resource_group: "{{ resource_group_name }}"
+        name: "{{ public_ip_name }}"
+      register: public_ip_output
+    - debug: 
+        msg: "Please click this URL {{ public_ip_output.publicipaddresses[0].ip_address }}:80"
+    

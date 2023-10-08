@@ -1,0 +1,132 @@
+- name: Create Azure Web-DB Infra componments for VMs
+  hosts: localhost
+  connection: local
+  vars:
+    ssh_key_filename: id_rsa_az_ansible_app
+    ansible_user: osboxes
+  #vars_prompt:
+  #  - name: "ssh_passphrase"
+  #    prompt: "Enter the passphrase for the SSH key"
+  roles:
+    - ssh-key-generate
+
+- name: Create Azure Web-DB Infra componments for VMs
+  hosts: localhost
+  connection: local
+  vars:
+    resource_group_name: az-web-db-app-rg
+    region: centralindia
+    virtual_network_name: az-web-db-app-vnet
+    virtual_network_cidr: "10.0.0.0/16"
+  roles:
+    - az-resource-group
+    - az-virtual-network
+
+- name: Create Azure DB VM Network Security Group creation for SSH
+  hosts: localhost
+  connection: local
+  tasks:
+    - include_role: 
+        name: az-network-security-group
+      vars:
+        resource_group_name: az-web-db-app-rg
+        network_security_group_name: "{{ item.nsg_name }}"
+        rule_name: "{{ item.name }}"
+        rule_protocol: "{{ item.protocol }}"
+        port_range: "{{ item.port_range }}"
+        access_type: "{{ item.access_type }}"
+        priority: "{{ item.priority }}"
+        direction: "{{ item.direction }}"
+      with_items:
+        - { nsg_name: 'az-web-nsg', name: 'SSH' , protocol: 'Tcp', port_range: '22', access_type: 'Allow', priority: '1001', direction: 'Inbound' }
+        - { nsg_name: 'az-db-nsg', name: 'SSH' , protocol: 'Tcp', port_range: '22', access_type: 'Allow', priority: '1001', direction: 'Inbound' }
+        - { nsg_name: 'az-web-nsg', name: 'HTTP' , protocol: 'Tcp', port_range: '80', access_type: 'Allow', priority: '1002', direction: 'Inbound' }
+
+- name: Create Azure Web & DB subnet setup
+  hosts: localhost
+  connection: local  
+  tasks:
+    - include_role: 
+        name: az-subnet
+      vars:
+        resource_group_name: az-web-db-app-rg
+        virtual_network_name: az-web-db-app-vnet
+        subnet_name: "{{ item.subnet_name }}"
+        subnet_range: "{{ item.subnet_range }}"
+      with_items:
+        - { subnet_name: 'az-web-subnet', subnet_range: "10.0.1.0/24" }
+        - { subnet_name: 'az-db-subnet', subnet_range: "10.0.2.0/24" }
+
+- name: Create Network Interface Card 
+  hosts: localhost
+  connection: local
+  tasks:
+    - include_role: 
+        name: az-network-interface-card
+      vars:
+        resource_group_name: az-web-db-app-rg
+        network_interface_name: "{{ item.nic_name }}"
+        virtual_network_name: az-web-db-app-vnet
+        subnet_name: "{{ item.subnet_name }}"
+        network_security_group_name: "{{ item.nsg_name }}"
+      with_items:
+        - { nic_name: 'az-web-vm-nic-1', subnet_name: 'az-web-subnet', nsg_name: 'az-web-nsg' }
+        - { nic_name: 'az-web-vm-nic-2', subnet_name: 'az-web-subnet', nsg_name: 'az-web-nsg' }
+        - { nic_name: 'az-db-vm-nic-1', subnet_name: 'az-db-subnet', nsg_name: 'az-db-nsg' }
+
+- name: Create Virtual Machines
+  hosts: localhost
+  connection: local
+  tasks:
+    - include_role: 
+        name: az-virtual-machine
+      vars:
+        resource_group_name: az-web-db-app-rg
+        nic_name: "{{ item.nic_name }}"
+        key_data: "{{lookup('ansible.builtin.file', '{{ playbook_dir }}/.ssh/id_rsa_az_ansible_app.pub') }}"
+        vm_name: "{{ item.vm_name }}"
+      with_items:
+        - { nic_name: 'az-web-vm-nic-1', vm_name: 'az-web-vm-1' }
+        - { nic_name: 'az-web-vm-nic-2', vm_name: 'az-web-vm-2' }
+        - { nic_name: 'az-db-vm-nic-1', vm_name: 'az-db-vm-1' }
+
+- name: Create VMs VNet to VPN VNet Peering
+  hosts: localhost
+  connection: local
+  tasks:
+    - include_role: 
+        name: az-virtual-network-peer
+      vars:
+        peering_name: "{{ item.peering_name }}"
+        resource_group_name: "{{ item.rg }}"
+        vnet_name: "{{ item.vnet }}"
+        remote_resource_group_name: "{{ item.remote_rg }}"
+        remote_vnet_name: "{{ item.remote_vnet }}"
+        use_remote_gateway: "{{ item.remote_gw }}"
+        allow_gateway_transit: "{{ item.gw_transit }}"
+      with_items:
+        - { peering_name: 'app-to-vpn-peer', rg: 'az-web-db-app-rg', vnet: 'az-web-db-app-vnet' , remote_rg: 'az-vpn-gw-rg', remote_vnet: 'az-vpn-gw-vnet', remote_gw: 'true', gw_transit: 'false' }
+        - { peering_name: 'vpn-to-app-peer', rg: 'az-vpn-gw-rg', vnet: 'az-vpn-gw-vnet' , remote_rg: 'az-web-db-app-rg', remote_vnet: 'az-web-db-app-vnet', remote_gw: 'false', gw_transit: 'true' }
+
+- name: Create Azure Web-DB-APP External Loadbalancer
+  hosts: localhost
+  connection: local
+  vars:
+    resource_group_name: az-web-app-lb-rg
+    region: centralindia
+    public_ip_name: az-web-app-lb-pip
+    load_balancer_name: az-web-app-lb
+    az_client_id: <<azure client id>>
+    az_client_secret: << azure client secret>>
+    az_tenant_id: << azure tenant id >>
+    subscription_id: << azure subscription id>>
+    target_resource_group_name: az-web-db-app-rg
+    target_vnet_name: az-web-db-app-vnet
+    network_interfaces:
+      - 'az-web-vm-nic-1'
+      - 'az-web-vm-nic-2'
+  roles:
+    - az-resource-group
+    - az-public-ip
+    - az-external-loadbalancer
+

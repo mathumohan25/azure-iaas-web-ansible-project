@@ -1,0 +1,12 @@
+---
+# tasks file for python
+    - name: Install all required dependencies
+      apt: name={{ item }} state=present force=yes
+      with_items:
+        - python3
+        - python-setuptools
+        - python3-dev
+        - build-essential
+        - python3-pip        
+        - python-mysqldb        
+        - git

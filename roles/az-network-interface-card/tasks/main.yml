@@ -1,0 +1,12 @@
+---
+  - name: Create virtual network interface card "{{ network_interface_name }}"
+    azure_rm_networkinterface:
+      resource_group: "{{ resource_group_name }}"
+      name: "{{ network_interface_name }}"
+      virtual_network: "{{ virtual_network_name }}"
+      subnet: "{{ subnet_name }}"
+      security_group: "{{ network_security_group_name }}"
+    register: output_priv_ip_address
+  - name: Private IP of VM
+    debug:
+      msg: "The private IP for {{ network_interface_name }} is {{ output_priv_ip_address.state.ip_configuration.private_ip_address }}."
