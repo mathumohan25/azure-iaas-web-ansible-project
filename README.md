@@ -213,10 +213,10 @@ _Note: Dynamic inventory file name should suffixed with 'azure_rm'_
 |15| web-falsk-app   | To run the web application , this flask is required and its dependent on python    | -    |
 
 # Overall flow of the Azure resources and its dependency
-![Local Image](/flow.png)
+![Local Image](/flow.jpg)
 
 # Azure Resource Diagram
-![Local Image](res_diagram.png)
+![Local Image](res_diagram.jpg)
 
 # Improvments can be done
 - OpenVPN Connect is not included in the Ansible script because the passphrase is not prompted by the OpenVPN client.
