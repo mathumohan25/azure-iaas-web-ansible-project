@@ -221,7 +221,7 @@ _Note: Dynamic inventory file name should suffixed with 'azure_rm'_
 # Improvments can be done
 - OpenVPN Connect is not included in the Ansible script because the passphrase is not prompted by the OpenVPN client.
 
-- DNS configuration is not included in the script due to the Azure Load Balancer being at Level 4. SSL cannot be enabled in this use case.
+- DNS configuration is not included in the script due to the Azure Load Balancer being at Layer 4. SSL cannot be enabled in this use case. Alternative to use Application Gateway to enable SSL.
 
 # References
 - Web-DB application: https://github.com/mmumshad/simple-webapp
